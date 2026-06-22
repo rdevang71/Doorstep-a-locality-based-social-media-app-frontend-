@@ -1,0 +1,38 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap");
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@layer base {
+  body {
+    @apply bg-cream text-ink antialiased;
+    font-family: "DM Sans", sans-serif;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: "DM Serif Display", serif;
+  }
+  button,
+  input,
+  textarea,
+  select {
+    @apply outline-none;
+  }
+}
+@layer components {
+  .card {
+    @apply rounded-[1.75rem] border border-forest/10 bg-white shadow-soft;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-forest px-5 py-3 font-semibold text-white transition hover:-translate-y-0.5 hover:bg-ink disabled:opacity-50;
+  }
+  .btn-soft {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-mint px-4 py-2 font-semibold text-forest transition hover:bg-lime;
+  }
+  .field {
+    @apply w-full rounded-2xl border border-forest/15 bg-white px-4 py-3 transition placeholder:text-ink/35 focus:border-forest focus:ring-4 focus:ring-mint;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-semibold;
+  }
+}
