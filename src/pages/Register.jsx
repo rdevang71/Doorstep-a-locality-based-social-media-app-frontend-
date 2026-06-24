@@ -125,13 +125,13 @@ export default function Register() {
                   className={
                     "rounded-2xl border p-3 text-left transition " +
                     (active
-                      ? "border-forest bg-mint ring-2 ring-forest/10"
+                      ? "border-forest bg-mint text-forest ring-2 ring-forest/10 dark:border-lime/40 dark:text-white"
                       : "border-forest/15 bg-white hover:border-forest/40")
                   }
                 >
                   <Icon size={20} className={active ? "text-coral" : "text-ink/45"} />
                   <span className="mt-2 block font-bold">{label}</span>
-                  <span className="mt-1 block text-xs leading-4 text-ink/50">{description}</span>
+                  <span className={"mt-1 block text-xs leading-4 " + (active ? "text-forest/70 dark:text-white/70" : "text-ink/50")}>{description}</span>
                 </button>
               );
             })}
