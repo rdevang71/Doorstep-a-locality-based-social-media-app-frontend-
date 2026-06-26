@@ -44,24 +44,52 @@ export default function BusinessPages() {
   );
 
   const loadBusinesses = (signal) => {
-    const params = user?.city ? { city: user.city } : {};
-    return api
-      .get("/business-pages", { params, signal })
-      .then((r) => setBusinesses(r.data || []))
+    const city = user?.city?.trim();
+    const queries = city ? [{ city }, {}] : [{}];
+
+    const run = async () => {
+      for (const query of queries) {
+        const { data } = await api.get("/business-pages", {
+          params: query,
+          signal,
+        });
+        if (data?.length || query === queries[queries.length - 1]) {
+          return data || [];
+        }
+      }
+      return [];
+    };
+
+    return run()
+      .then(setBusinesses)
       .catch((error) => {
         if (error.name !== "CanceledError") setBusinesses([]);
       });
   };
 
   const loadPosts = (signal, businessId = selectedBusinessId) => {
-    const params = {
-      ...(user?.city ? { city: user.city } : {}),
-      ...(businessId ? { businessPageId: businessId } : { businessOnly: true }),
+    const city = user?.city?.trim();
+    const queries = businessId
+      ? [{ businessPageId: businessId }]
+      : city
+        ? [
+            { city, businessOnly: true },
+            { businessOnly: true },
+          ]
+        : [{ businessOnly: true }];
+
+    const run = async () => {
+      for (const query of queries) {
+        const { data } = await api.get("/posts", { params: query, signal });
+        if (data.posts?.length || query === queries[queries.length - 1]) {
+          return data.posts || [];
+        }
+      }
+      return [];
     };
 
-    return api
-      .get("/posts", { params, signal })
-      .then((r) => setPosts(r.data.posts || []))
+    return run()
+      .then(setPosts)
       .catch((error) => {
         if (error.name !== "CanceledError") setPosts([]);
       });
@@ -325,3 +353,4 @@ export default function BusinessPages() {
     </main>
   );
 }
+

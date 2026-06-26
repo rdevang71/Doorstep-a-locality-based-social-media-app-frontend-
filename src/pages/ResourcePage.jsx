@@ -91,6 +91,9 @@ export default function ResourcePage({
     try {
       await api.put(`${endpoint}/${item._id}/${action}`);
       await load();
+      if (endpoint === "/communities" && action === "request") {
+        toast.success("Join request sent");
+      }
     } catch (x) {
       toast.error(x.response?.data?.message || "Sign in to continue");
     }
@@ -157,5 +160,6 @@ export default function ResourcePage({
     </main>
   );
 }
+
 
 

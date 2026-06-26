@@ -19,24 +19,52 @@ export default function Home() {
     if (loading) return undefined;
 
     const controller = new AbortController();
-    const area = user?.pincode
-      ? { pincode: user.pincode }
-      : user?.city
-        ? { city: user.city }
-        : {};
-    const q = { ...area, ...(tag ? { hashtag: tag } : {}) };
+    const pincode = user?.pincode?.trim();
+    const city = user?.city?.trim();
+    const area = pincode ? { pincode } : city ? { city } : {};
+    const tagParams = tag ? { hashtag: tag } : {};
+
+    const firstNonEmptyPosts = async (queries, signal) => {
+      for (const query of queries) {
+        const { data } = await api.get("/posts", {
+          params: { ...query, ...tagParams },
+          signal,
+        });
+        if (data.posts?.length || query === queries[queries.length - 1]) {
+          return data.posts || [];
+        }
+      }
+      return [];
+    };
+
+    const firstNonEmptyTags = async (queries, signal) => {
+      for (const query of queries) {
+        const { data } = await api.get("/hashtags/trending", {
+          params: query,
+          signal,
+        });
+        if (data.hashtags?.length || query === queries[queries.length - 1]) {
+          return data.hashtags || [];
+        }
+      }
+      return [];
+    };
+
+    const areaQueries = [
+      area,
+      ...(pincode && city ? [{ city }] : []),
+      ...(user ? [{}] : []),
+    ];
 
     const refreshPosts = (signal) =>
-      api
-        .get("/posts", { params: q, signal })
-        .then((r) => setPosts(r.data.posts || []))
+      firstNonEmptyPosts(areaQueries, signal)
+        .then(setPosts)
         .catch((error) => {
           if (error.name !== "CanceledError") setPosts([]);
         });
     const refreshTags = (signal) =>
-      api
-        .get("/hashtags/trending", { params: area, signal })
-        .then((r) => setTags(r.data.hashtags || []))
+      firstNonEmptyTags(areaQueries, signal)
+        .then(setTags)
         .catch((error) => {
           if (error.name !== "CanceledError") setTags([]);
         });
@@ -157,5 +185,3 @@ export default function Home() {
     </main>
   );
 }
-
-

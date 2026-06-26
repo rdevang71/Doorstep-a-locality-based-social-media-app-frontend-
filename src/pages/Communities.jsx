@@ -7,7 +7,7 @@ export default function Communities() {
       eyebrow="COMMUNITIES"
       endpoint="/communities"
       Card={CommunityCard}
-      action="join"
+      action="request"
       fields={[
         ["name", "Community name"],
         ["description", "What is it about?"],
@@ -17,3 +17,4 @@ export default function Communities() {
     />
   );
 }
+

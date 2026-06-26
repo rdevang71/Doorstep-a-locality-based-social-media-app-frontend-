@@ -2,7 +2,8 @@ import { Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import api from "../api/axiosInstance";
-export default function ChatBox({ room }) {
+import toast from "react-hot-toast";
+export default function ChatBox({ room, description = "Public room - Be kind, keep it local" }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const socket = useRef();
@@ -18,7 +19,9 @@ export default function ChatBox({ room }) {
       ),
       { auth: { token: localStorage.getItem("lc_token") } },
     );
-    socket.current.emit("room:join", room._id);
+    socket.current.emit("room:join", room._id, (response) => {
+      if (response && !response.ok) toast.error(response.message || "Could not join room");
+    });
     socket.current.on("message:new", (m) => setMessages((v) => [...v, m]));
     return () => socket.current?.disconnect();
   }, [room]);
@@ -30,6 +33,7 @@ export default function ChatBox({ room }) {
       { roomId: room._id, content: text },
       (r) => {
         if (r.ok) setText("");
+        else toast.error(r.message || "Could not send message");
       },
     );
   };
@@ -44,7 +48,7 @@ export default function ChatBox({ room }) {
       <div className="border-b p-4">
         <h2 className="text-xl">{room.name}</h2>
         <p className="text-xs text-ink/45">
-          Public room · Be kind, keep it local
+          {description}
         </p>
       </div>
       <div className="flex-1 space-y-3 overflow-y-auto p-4">
@@ -69,3 +73,4 @@ export default function ChatBox({ room }) {
     </div>
   );
 }
+

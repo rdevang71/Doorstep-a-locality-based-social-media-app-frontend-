@@ -8,6 +8,7 @@ import CreatePost from "./pages/CreatePost";
 import PostDetails from "./pages/PostDetails";
 import BusinessPages from "./pages/BusinessPages";
 import Communities from "./pages/Communities";
+import CommunityDetails from "./pages/CommunityDetails";
 import Events from "./pages/Events";
 import PublicChat from "./pages/PublicChat";
 import AreaSummary from "./pages/AreaSummary";
@@ -48,6 +49,7 @@ export default function App() {
         <Route path="/posts/:id" element={<PostDetails />} />
         <Route path="/businesses" element={<BusinessPages />} />
         <Route path="/communities" element={<Communities />} />
+        <Route path="/communities/:id" element={<CommunityDetails />} />
         <Route path="/events" element={<Events />} />
         <Route element={<Protected />}>
           <Route path="/create" element={<CreatePost />} />
@@ -62,3 +64,4 @@ export default function App() {
     </Routes>
   );
 }
+
