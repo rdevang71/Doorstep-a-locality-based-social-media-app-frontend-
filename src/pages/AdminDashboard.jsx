@@ -1,12 +1,17 @@
 import { useEffect, useState } from "react";
 import api from "../api/axiosInstance";
+import { onRealtime } from "../api/realtime";
 export default function AdminDashboard() {
   const [reports, setReports] = useState([]);
   useEffect(() => {
-    api
-      .get("/reports")
-      .then((r) => setReports(r.data))
-      .catch(() => {});
+    const load = () =>
+      api
+        .get("/reports")
+        .then((r) => setReports(r.data || []))
+        .catch(() => setReports([]));
+    const unsubscribe = onRealtime("reports:changed", load);
+    load();
+    return unsubscribe;
   }, []);
   return (
     <main className="mx-auto max-w-6xl px-4 py-10">
@@ -43,3 +48,4 @@ export default function AdminDashboard() {
     </main>
   );
 }
+

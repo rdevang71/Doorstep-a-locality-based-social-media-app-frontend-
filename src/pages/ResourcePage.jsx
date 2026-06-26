@@ -1,8 +1,10 @@
 import { Plus, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import api from "../api/axiosInstance";
+import { onRealtime } from "../api/realtime";
 import { useAuth } from "../context/AuthContext";
 import toast from "react-hot-toast";
+
 export default function ResourcePage({
   title,
   eyebrow,
@@ -11,47 +13,89 @@ export default function ResourcePage({
   action,
   fields,
 }) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [items, setItems] = useState([]);
   const [open, setOpen] = useState(false);
-  const initial = Object.fromEntries(
-    fields.map(([k]) => [
-      k,
-      k === "city"
-        ? user?.city || ""
-        : k === "locality"
-          ? user?.locality || ""
-          : "",
-    ]),
+  const initial = useMemo(
+    () =>
+      Object.fromEntries(
+        fields.map(([k]) => [
+          k,
+          k === "city"
+            ? user?.city || ""
+            : k === "locality"
+              ? user?.locality || ""
+              : "",
+        ]),
+      ),
+    [fields, user?.city, user?.locality],
   );
   const [form, setForm] = useState(initial);
-  const load = () =>
-    api
-      .get(endpoint, { params: { city: user?.city } })
-      .then((r) => setItems(r.data))
-      .catch(() => {});
+
   useEffect(() => {
-    load();
-  }, [endpoint, user?.city]);
+    setForm((current) => ({
+      ...current,
+      ...(Object.hasOwn(initial, "city") ? { city: initial.city } : {}),
+      ...(Object.hasOwn(initial, "locality")
+        ? { locality: initial.locality }
+        : {}),
+    }));
+  }, [initial]);
+
+  const load = (signal) => {
+    const city = user?.city?.trim();
+    const params = city ? { city } : {};
+    return api
+      .get(endpoint, { params, signal })
+      .then(async (r) => {
+        const data = r.data || [];
+        if (endpoint === "/communities" && city && !data.length) {
+          const fallback = await api.get(endpoint, { signal });
+          setItems(fallback.data || []);
+          return;
+        }
+        setItems(data);
+      })
+      .catch((error) => {
+        if (error.name !== "CanceledError") setItems([]);
+      });
+  };
+
+  useEffect(() => {
+    if (loading) return undefined;
+
+    const controller = new AbortController();
+    const eventName = endpoint.replace(/^\//, "") + ":changed";
+    const refresh = () => load();
+    const unsubscribe = onRealtime(eventName, refresh);
+    load(controller.signal);
+    return () => {
+      controller.abort();
+      unsubscribe();
+    };
+  }, [endpoint, loading, user?.city]);
+
   const create = async (e) => {
     e.preventDefault();
     try {
       await api.post(endpoint, form);
       setOpen(false);
-      load();
+      await load();
       toast.success("Created successfully");
     } catch (x) {
       toast.error(x.response?.data?.message || "Could not create");
     }
   };
+
   const act = async (item) => {
     try {
       await api.put(`${endpoint}/${item._id}/${action}`);
-      load();
+      await load();
     } catch (x) {
       toast.error(x.response?.data?.message || "Sign in to continue");
     }
   };
+
   return (
     <main className="mx-auto max-w-7xl px-4 py-10 lg:px-8">
       <div className="flex items-end justify-between">
@@ -96,7 +140,11 @@ export default function ResourcePage({
                 <input
                   className="field mt-1"
                   type={type}
-                  required={!["description", "locality", "venue"].includes(k)}
+                  required={![
+                    "description",
+                    "locality",
+                    "venue",
+                  ].includes(k)}
                   value={form[k]}
                   onChange={(e) => setForm({ ...form, [k]: e.target.value })}
                 />
@@ -109,3 +157,5 @@ export default function ResourcePage({
     </main>
   );
 }
+
+

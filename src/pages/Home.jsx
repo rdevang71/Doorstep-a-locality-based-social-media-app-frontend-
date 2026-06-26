@@ -2,25 +2,67 @@ import { ArrowRight, MapPin, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import api from "../api/axiosInstance";
+import { onRealtime } from "../api/realtime";
 import { useAuth } from "../context/AuthContext";
 import PostCard from "../components/PostCard";
 import TrendingHashtags from "../components/TrendingHashtags";
 import HashtagFilter from "../components/HashtagFilter";
+
 export default function Home() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [params, setParams] = useSearchParams();
   const [posts, setPosts] = useState([]);
   const [tags, setTags] = useState([]);
   const tag = params.get("hashtag") || "";
+
   useEffect(() => {
-    const area = user?.pincode ? { pincode: user.pincode } : { city: user?.city };
-    const q = { ...area, hashtag: tag };
-    api.get("/posts", { params: q }).then((r) => setPosts(r.data.posts));
-    api
-      .get("/hashtags/trending", { params: area })
-      .then((r) => setTags(r.data.hashtags))
-      .catch(() => {});
-  }, [user?.city, user?.pincode, tag]);
+    if (loading) return undefined;
+
+    const controller = new AbortController();
+    const area = user?.pincode
+      ? { pincode: user.pincode }
+      : user?.city
+        ? { city: user.city }
+        : {};
+    const q = { ...area, ...(tag ? { hashtag: tag } : {}) };
+
+    const refreshPosts = (signal) =>
+      api
+        .get("/posts", { params: q, signal })
+        .then((r) => setPosts(r.data.posts || []))
+        .catch((error) => {
+          if (error.name !== "CanceledError") setPosts([]);
+        });
+    const refreshTags = (signal) =>
+      api
+        .get("/hashtags/trending", { params: area, signal })
+        .then((r) => setTags(r.data.hashtags || []))
+        .catch((error) => {
+          if (error.name !== "CanceledError") setTags([]);
+        });
+    const refreshAll = () => {
+      refreshPosts();
+      refreshTags();
+    };
+
+    refreshPosts(controller.signal);
+    refreshTags(controller.signal);
+
+    const unsubscribers = [
+      onRealtime("posts:created", refreshAll),
+      onRealtime("posts:updated", refreshAll),
+      onRealtime("posts:deleted", refreshAll),
+      onRealtime("posts:liked", () => refreshPosts()),
+      onRealtime("posts:commented", () => refreshPosts()),
+      onRealtime("hashtags:changed", () => refreshTags()),
+    ];
+
+    return () => {
+      controller.abort();
+      unsubscribers.forEach((unsubscribe) => unsubscribe());
+    };
+  }, [loading, user?.city, user?.pincode, tag]);
+
   return (
     <main>
       <section className="border-b border-forest/10 bg-mint/70">
@@ -80,7 +122,7 @@ export default function Home() {
               ))
             ) : (
               <div className="card p-12 text-center">
-                <h2 className="text-2xl">It’s quiet here—for now.</h2>
+                <h2 className="text-2xl">It's quiet here for now.</h2>
                 <p className="mt-2 text-ink/50">
                   Be the first to start a local conversation.
                 </p>
@@ -115,3 +157,5 @@ export default function Home() {
     </main>
   );
 }
+
+

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import api from "../api/axiosInstance";
+import { onRealtime } from "../api/realtime";
 import PostCard from "../components/PostCard";
 import { useAuth } from "../context/AuthContext";
 
@@ -17,29 +18,63 @@ export default function PostDetails() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    const controller = new AbortController();
     let active = true;
-    setLoading(true);
-    Promise.all([
-      api.get("/posts/" + id),
-      api.get("/posts/" + id + "/comments"),
-    ])
-      .then(([postResponse, commentsResponse]) => {
-        if (!active) return;
-        setPost(postResponse.data);
-        setComments(commentsResponse.data.comments || []);
-      })
-      .catch((error) => {
-        if (active) {
+
+    const load = (showLoading = false) => {
+      if (showLoading) setLoading(true);
+      return Promise.all([
+        api.get("/posts/" + id, { signal: controller.signal }),
+        api.get("/posts/" + id + "/comments", { signal: controller.signal }),
+      ])
+        .then(([postResponse, commentsResponse]) => {
+          if (!active) return;
+          setPost(postResponse.data);
+          setComments(commentsResponse.data.comments || []);
+        })
+        .catch((error) => {
+          if (!active || error.name === "CanceledError") return;
           toast.error(error.response?.data?.message || "Could not load post");
-        }
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+    };
+
+    load(true);
+
+    const samePost = (value) => String(value?._id || value?.postId || "") === String(id);
+    const unsubscribers = [
+      onRealtime("posts:updated", (updated) => {
+        if (samePost(updated)) setPost(updated);
+      }),
+      onRealtime("posts:deleted", (deleted) => {
+        if (samePost(deleted)) navigate("/");
+      }),
+      onRealtime("posts:liked", (likedPost) => {
+        if (samePost(likedPost)) load();
+      }),
+      onRealtime("comments:created", (payload) => {
+        if (!samePost(payload)) return;
+        setComments((current) =>
+          current.some((comment) => comment._id === payload.comment._id)
+            ? current
+            : [...current, payload.comment],
+        );
+        setPost((current) =>
+          current
+            ? { ...current, commentsCount: payload.commentsCount }
+            : current,
+        );
+      }),
+    ];
+
     return () => {
       active = false;
+      controller.abort();
+      unsubscribers.forEach((unsubscribe) => unsubscribe());
     };
-  }, [id]);
+  }, [id, navigate]);
 
   const addComment = async (e) => {
     e.preventDefault();

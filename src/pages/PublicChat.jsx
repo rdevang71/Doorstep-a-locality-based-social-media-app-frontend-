@@ -7,10 +7,16 @@ export default function PublicChat() {
   const [rooms, setRooms] = useState([]);
   const [room, setRoom] = useState();
   useEffect(() => {
-    api.get("/chat/rooms", { params: { city: user?.city } }).then((r) => {
-      setRooms(r.data);
-      setRoom(r.data[0]);
-    });
+    api
+      .get("/chat/rooms", { params: { city: user?.city } })
+      .then((r) => {
+        setRooms(r.data || []);
+        setRoom(r.data?.[0]);
+      })
+      .catch(() => {
+        setRooms([]);
+        setRoom(undefined);
+      });
   }, [user?.city]);
   return (
     <main className="mx-auto max-w-6xl px-4 py-10">
@@ -39,3 +45,4 @@ export default function PublicChat() {
     </main>
   );
 }
+

@@ -5,6 +5,7 @@ import {
   MoreHorizontal,
   Pencil,
   Save,
+  Store,
   Trash2,
   X,
 } from "lucide-react";
@@ -36,11 +37,17 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
   useEffect(() => {
     setCurrent(post);
     setLikes(post.likes?.length || 0);
-  }, [post]);
+    setLiked(
+      post.likes?.some(
+        (id) => String(id?._id || id) === String(user?.id || user?._id),
+      ) || false,
+    );
+  }, [post, user?.id, user?._id]);
 
   const ownerId = current.author?._id || current.author;
   const userId = user?.id || user?._id;
   const isOwner = Boolean(userId && ownerId && String(ownerId) === String(userId));
+  const business = current.businessPage;
 
   const like = async () => {
     if (!user) return toast.error("Sign in to like posts");
@@ -145,6 +152,20 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
           </div>
         )}
       </div>
+
+      {business && (
+        <div className="mb-4 flex items-center gap-3 rounded-2xl bg-mint px-4 py-3 text-sm">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-lime text-forest">
+            <Store size={17} />
+          </span>
+          <div>
+            <p className="font-bold">{business.name}</p>
+            <p className="text-xs text-ink/50">
+              {business.category || "Local business"}
+            </p>
+          </div>
+        </div>
+      )}
 
       <Link to={"/posts/" + current._id}>
         <p className="whitespace-pre-wrap text-[1.05rem] leading-7">
@@ -257,3 +278,4 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
     </article>
   );
 }
+
