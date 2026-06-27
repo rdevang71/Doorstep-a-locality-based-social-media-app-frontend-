@@ -108,8 +108,12 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
   return (
     <article className="card overflow-visible p-5 sm:p-6">
       <div className="mb-4 flex items-center">
-        <div className="grid h-11 w-11 place-items-center rounded-full bg-forest text-lg font-bold text-lime">
-          {current.author?.name?.[0] || "L"}
+        <div className="grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-forest text-lg font-bold text-lime">
+          {current.author?.avatar ? (
+            <img src={current.author.avatar} alt="" className="h-full w-full object-cover" />
+          ) : (
+            current.author?.name?.[0] || "L"
+          )}
         </div>
         <div className="ml-3">
           <Link to={current.author?._id ? `/profile/${current.author._id}` : "#"} className="font-bold hover:text-coral">{current.author?.name || "Neighbour"}</Link>

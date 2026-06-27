@@ -34,6 +34,7 @@ export default function PublicChat() {
   const [roomPassword, setRoomPassword] = useState("");
   const [privateRoomPasswords, setPrivateRoomPasswords] = useState({});
   const [roomSearch, setRoomSearch] = useState("");
+  const [friendSearch, setFriendSearch] = useState("");
 
   const filteredRooms = useMemo(() => {
     const query = roomSearch.trim().toLowerCase();
@@ -52,6 +53,25 @@ export default function PublicChat() {
     );
   }, [rooms, roomSearch]);
 
+  const filteredFriends = useMemo(() => {
+    const query = friendSearch.trim().toLowerCase();
+    if (!query) return friends;
+    return friends.filter((entry) => {
+      const friend = entry.friend || {};
+      const chatRoom = entry.room || {};
+      return [
+        friend.name,
+        friend.city,
+        friend.locality,
+        friend.email,
+        chatRoom.name,
+        chatRoom.description,
+        chatRoom.roomCode,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query));
+    });
+  }, [friendSearch, friends]);
   const getStoredRoomPassword = (item) =>
     privateRoomPasswords[item?._id] || privateRoomPasswords[item?.roomCode] || "";
 
@@ -373,7 +393,16 @@ export default function PublicChat() {
             </>
           ) : (
             <>
-              {friends.map((entry) => {
+              <label className="relative mb-3 block">
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-forest/45" />
+                <input
+                  className="field h-11 pl-9 text-sm"
+                  placeholder={isSuperAdmin ? "Search direct chats" : "Search friends"}
+                  value={friendSearch}
+                  onChange={(e) => setFriendSearch(e.target.value)}
+                />
+              </label>
+              {filteredFriends.map((entry) => {
                 const friend = entry.friend;
                 const isSelected = activeFriend && sameId(activeFriend._id, friend._id);
                 return (
@@ -391,6 +420,7 @@ export default function PublicChat() {
                   </div>
                 );
               })}
+              {Boolean(friends.length && !filteredFriends.length) && <p className="p-3 text-sm text-ink/45">No chats match your search.</p>}
               {!friends.length && (
                 <div className="grid gap-3 p-3 text-sm text-ink/55">
                   <Users size={24} className="text-coral" />
