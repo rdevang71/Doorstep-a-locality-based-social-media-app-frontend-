@@ -112,7 +112,7 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
           {current.author?.name?.[0] || "L"}
         </div>
         <div className="ml-3">
-          <p className="font-bold">{current.author?.name || "Neighbour"}</p>
+          <Link to={current.author?._id ? `/profile/${current.author._id}` : "#"} className="font-bold hover:text-coral">{current.author?.name || "Neighbour"}</Link>
           <p className="flex items-center gap-1 text-xs text-ink/50">
             <MapPin size={12} />
             {current.locality}, {current.city} ·{" "}
@@ -278,4 +278,5 @@ export default function PostCard({ post, onUpdated, onDeleted }) {
     </article>
   );
 }
+
 

@@ -3,34 +3,34 @@ import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import api from "../api/axiosInstance";
 import toast from "react-hot-toast";
-export default function ChatBox({ room, description = "Public room - Be kind, keep it local" }) {
+export default function ChatBox({ room, password = "", description = "Public room - Be kind, keep it local" }) {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const socket = useRef();
   useEffect(() => {
     if (!room) return;
     api
-      .get(`/chat/rooms/${room._id}/messages`)
+      .get(`/chat/rooms/${room._id}/messages`, { params: password ? { password } : {} })
       .then((r) => setMessages(r.data));
     socket.current = io(
       (import.meta.env.VITE_API_URL || "http://localhost:8000/api").replace(
         /\/api\/?$/,
         "",
       ),
-      { auth: { token: localStorage.getItem("lc_token") } },
+      { auth: { token: localStorage.getItem("lc_token"), roomPasswords: password ? { [room._id]: password } : {} } },
     );
     socket.current.emit("room:join", room._id, (response) => {
       if (response && !response.ok) toast.error(response.message || "Could not join room");
     });
     socket.current.on("message:new", (m) => setMessages((v) => [...v, m]));
     return () => socket.current?.disconnect();
-  }, [room]);
+  }, [room, password]);
   const send = (e) => {
     e.preventDefault();
     if (!text.trim()) return;
     socket.current.emit(
       "message:send",
-      { roomId: room._id, content: text },
+      { roomId: room._id, content: text, password },
       (r) => {
         if (r.ok) setText("");
         else toast.error(r.message || "Could not send message");
@@ -73,4 +73,5 @@ export default function ChatBox({ room, description = "Public room - Be kind, ke
     </div>
   );
 }
+
 

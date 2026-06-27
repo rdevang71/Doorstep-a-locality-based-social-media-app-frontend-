@@ -68,6 +68,12 @@ export default function Register() {
     city: "",
     locality: "",
     pincode: "",
+    avatar: "",
+    bio: "",
+    interests: "",
+    hobbies: "",
+    occupation: "",
+    education: "",
     businessName: "",
     businessCategory: "",
     communityName: "",
@@ -145,6 +151,30 @@ export default function Register() {
         <label className="label">
           Email
           <input className="field mt-1" type="email" required value={f.email} onChange={(e) => set("email", e.target.value)} />
+        </label>
+        <label className="label">
+          Profile pic URL
+          <input className="field mt-1" placeholder="https://..." value={f.avatar} onChange={(e) => set("avatar", e.target.value)} />
+        </label>
+        <label className="label">
+          Occupation
+          <input className="field mt-1" value={f.occupation} onChange={(e) => set("occupation", e.target.value)} />
+        </label>
+        <label className="label sm:col-span-2">
+          Bio
+          <textarea className="field mt-1 min-h-20 resize-y" value={f.bio} onChange={(e) => set("bio", e.target.value)} />
+        </label>
+        <label className="label">
+          Interests
+          <input className="field mt-1" placeholder="music, coding, cricket" value={f.interests} onChange={(e) => set("interests", e.target.value)} />
+        </label>
+        <label className="label">
+          Hobbies
+          <input className="field mt-1" placeholder="reading, gardening" value={f.hobbies} onChange={(e) => set("hobbies", e.target.value)} />
+        </label>
+        <label className="label sm:col-span-2">
+          Education
+          <input className="field mt-1" value={f.education} onChange={(e) => set("education", e.target.value)} />
         </label>
 
         {f.accountType === "business" && (
@@ -242,3 +272,5 @@ export default function Register() {
     </AuthShell>
   );
 }
+
+

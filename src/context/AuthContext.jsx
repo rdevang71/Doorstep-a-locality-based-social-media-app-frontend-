@@ -24,6 +24,11 @@ export function AuthProvider({ children }) {
     setUser(data.user);
     return data.user;
   };
+  const updateMe = async (values) => {
+    const { data } = await api.put("/users/me", values);
+    setUser(data);
+    return data;
+  };
   const logout = async () => {
     await api.post("/auth/logout").catch(() => {});
     localStorage.removeItem("lc_token");
@@ -37,9 +42,11 @@ export function AuthProvider({ children }) {
         login: (v) => authenticate("/auth/login", v),
         register: (v) => authenticate("/auth/register", v),
         logout,
+        updateMe,
       }}
     >
       {children}
     </AuthContext.Provider>
   );
 }
+

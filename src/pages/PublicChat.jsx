@@ -1,6 +1,7 @@
-import { Edit3, Eye, Image, Lock, Plus, Search, X } from "lucide-react";
+import { Edit3, Eye, Image, Lock, Plus, Search, Users, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
+import { Link } from "react-router-dom";
 import api from "../api/axiosInstance";
 import ChatBox from "../components/ChatBox";
 import { useAuth } from "../context/AuthContext";
@@ -18,19 +19,24 @@ const sameId = (a, b) => String(a?._id || a) === String(b?._id || b);
 
 export default function PublicChat() {
   const { user } = useAuth();
+  const [mode, setMode] = useState("rooms");
   const [rooms, setRooms] = useState([]);
+  const [friends, setFriends] = useState([]);
   const [room, setRoom] = useState();
+  const [activeFriend, setActiveFriend] = useState(null);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState(null);
   const [joiningRoom, setJoiningRoom] = useState(null);
   const [form, setForm] = useState(emptyRoom);
   const [joinForm, setJoinForm] = useState({ roomCode: "", password: "" });
   const [busy, setBusy] = useState(false);
+  const [roomPassword, setRoomPassword] = useState("");
 
   const selectedDescription = useMemo(() => {
-    if (!room) return "Choose a room to join the conversation.";
+    if (!room) return mode === "friends" ? "Choose a friend to start chatting." : "Choose a room to join the conversation.";
+    if (mode === "friends") return activeFriend ? `Private chat with ${activeFriend.name}` : "Friends-only direct chat";
     return room.description || `${room.type === "private" ? "Private" : "Public"} local chat room`;
-  }, [room]);
+  }, [activeFriend, mode, room]);
 
   const loadRooms = () =>
     api
@@ -38,6 +44,7 @@ export default function PublicChat() {
       .then((r) => {
         const data = r.data || [];
         setRooms(data);
+        if (mode !== "rooms") return;
         setRoom((current) => {
           if (current && data.some((item) => item._id === current._id)) {
             return data.find((item) => item._id === current._id);
@@ -47,12 +54,31 @@ export default function PublicChat() {
       })
       .catch(() => {
         setRooms([]);
-        setRoom(undefined);
+        if (mode === "rooms") setRoom(undefined);
       });
+
+  const loadFriends = () =>
+    api
+      .get("/chat/friends")
+      .then((r) => setFriends(r.data || []))
+      .catch(() => setFriends([]));
 
   useEffect(() => {
     loadRooms();
+    loadFriends();
   }, []);
+
+  const switchMode = (next) => {
+    setMode(next);
+    setRoomPassword("");
+    setActiveFriend(null);
+    if (next === "rooms") {
+      setRoom(rooms.find((item) => item.type === "public") || rooms[0]);
+    } else {
+      setRoom(undefined);
+      loadFriends();
+    }
+  };
 
   const openCreate = () => {
     setForm(emptyRoom);
@@ -87,6 +113,8 @@ export default function PublicChat() {
       setCreating(false);
       setForm(emptyRoom);
       await loadRooms();
+      setMode("rooms");
+      setActiveFriend(null);
       setRoom(data);
       toast.success("Chat room created");
     } catch (error) {
@@ -111,6 +139,8 @@ export default function PublicChat() {
       setEditing(null);
       setForm(emptyRoom);
       await loadRooms();
+      setMode("rooms");
+      setActiveFriend(null);
       setRoom(data);
       toast.success("Room updated");
     } catch (error) {
@@ -121,12 +151,37 @@ export default function PublicChat() {
   };
 
   const openRoom = (item) => {
-    if (item.type !== "private" || item.members?.some((id) => sameId(id, user?.id || user?._id))) {
+    setMode("rooms");
+    setActiveFriend(null);
+    if (item.type !== "private") {
+      setRoomPassword("");
       setRoom(item);
       return;
     }
     setJoiningRoom(item);
     setJoinForm({ roomCode: item.roomCode || "", password: "" });
+  };
+
+  const openFriend = async (entry) => {
+    const friend = entry.friend;
+    setBusy(true);
+    try {
+      const { data } = await api.post(`/chat/direct/${friend._id}`);
+      setMode("friends");
+      setRoomPassword("");
+      setActiveFriend(data.friend || friend);
+      setRoom({
+        ...data.room,
+        name: data.friend?.name || friend.name,
+        avatar: data.friend?.avatar || friend.avatar,
+        description: "Friends-only direct chat",
+      });
+      await loadFriends();
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Could not open friend chat");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const joinPrivateRoom = async (e) => {
@@ -135,8 +190,12 @@ export default function PublicChat() {
     try {
       const { data } = await api.post("/chat/rooms/join", joinForm);
       setJoiningRoom(null);
+      const password = joinForm.password;
       setJoinForm({ roomCode: "", password: "" });
       await loadRooms();
+      setMode("rooms");
+      setActiveFriend(null);
+      setRoomPassword(password);
       setRoom(data);
       toast.success("Joined private room");
     } catch (error) {
@@ -152,52 +211,91 @@ export default function PublicChat() {
     <main className="mx-auto max-w-7xl px-4 py-10 lg:px-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="font-bold text-coral">CHAT ROOMS</p>
+          <p className="font-bold text-coral">CHAT</p>
           <h1 className="mt-2 text-4xl sm:text-5xl">Talk to the neighbourhood</h1>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <button onClick={() => setJoiningRoom({})} className="btn-soft">
-            <Search size={18} /> Join private
-          </button>
-          <button onClick={openCreate} className="btn-primary">
-            <Plus size={18} /> Create room
-          </button>
-        </div>
+        {mode === "rooms" && (
+          <div className="flex flex-wrap gap-3">
+            <button onClick={() => setJoiningRoom({})} className="btn-soft">
+              <Search size={18} /> Join private
+            </button>
+            <button onClick={openCreate} className="btn-primary">
+              <Plus size={18} /> Create room
+            </button>
+          </div>
+        )}
       </div>
 
-      <div className="card mt-8 grid overflow-hidden lg:grid-cols-[340px_1fr]">
+      <div className="mt-6 inline-flex rounded-full bg-mint p-1">
+        <button onClick={() => switchMode("rooms")} className={`rounded-full px-5 py-2 font-bold transition ${mode === "rooms" ? "bg-forest text-white" : "text-forest/70 hover:text-forest"}`}>Chat rooms</button>
+        <button onClick={() => switchMode("friends")} className={`rounded-full px-5 py-2 font-bold transition ${mode === "friends" ? "bg-forest text-white" : "text-forest/70 hover:text-forest"}`}>Chat with friends</button>
+      </div>
+
+      <div className="card mt-6 grid overflow-hidden lg:grid-cols-[340px_1fr]">
         <aside className="max-h-[38rem] overflow-y-auto border-r border-forest/10 p-3">
-          {rooms.map((item) => {
-            const isOwner = sameId(item.createdBy, ownerId);
-            const isSelected = room?._id === item._id;
-            return (
-              <div key={item._id} className={`mb-2 rounded-2xl p-2 ${isSelected ? "bg-mint" : "hover:bg-cream"}`}>
-                <button onClick={() => openRoom(item)} className="flex w-full gap-3 rounded-xl p-2 text-left">
-                  <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl bg-forest text-lg font-bold text-lime">
-                    {item.avatar ? <img src={item.avatar} alt="" className="h-full w-full object-cover" /> : item.name?.[0] || "#"}
+          {mode === "rooms" ? (
+            <>
+              {rooms.map((item) => {
+                const isOwner = sameId(item.createdBy, ownerId);
+                const isSelected = room?._id === item._id && !activeFriend;
+                return (
+                  <div key={item._id} className={`mb-2 rounded-2xl p-2 ${isSelected ? "bg-mint" : "hover:bg-cream"}`}>
+                    <button onClick={() => openRoom(item)} className="flex w-full gap-3 rounded-xl p-2 text-left">
+                      <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl bg-forest text-lg font-bold text-lime">
+                        {item.avatar ? <img src={item.avatar} alt="" className="h-full w-full object-cover" /> : item.name?.[0] || "#"}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="truncate font-bold">{item.name}</p>
+                          {item.type === "private" ? <Lock size={14} className="text-coral" /> : <Eye size={14} className="text-forest/50" />}
+                        </div>
+                        <p className="truncate text-xs text-ink/45">{item.description || item.locality || item.city}</p>
+                        <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-ink/40">
+                          ID {item.roomCode || "legacy"} - {item.type}
+                        </p>
+                      </div>
+                    </button>
+                    {isOwner && (
+                      <button onClick={() => openEdit(item)} className="ml-2 mt-1 inline-flex items-center gap-1 text-xs font-bold text-coral">
+                        <Edit3 size={13} /> Edit room
+                      </button>
+                    )}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="truncate font-bold">{item.name}</p>
-                      {item.type === "private" ? <Lock size={14} className="text-coral" /> : <Eye size={14} className="text-forest/50" />}
-                    </div>
-                    <p className="truncate text-xs text-ink/45">{item.description || item.locality || item.city}</p>
-                    <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-ink/40">
-                      ID {item.roomCode || "legacy"} - {item.type}
-                    </p>
+                );
+              })}
+              {!rooms.length && <p className="p-3 text-sm text-ink/45">No chat rooms yet.</p>}
+            </>
+          ) : (
+            <>
+              {friends.map((entry) => {
+                const friend = entry.friend;
+                const isSelected = activeFriend && sameId(activeFriend._id, friend._id);
+                return (
+                  <div key={friend._id} className={`mb-2 rounded-2xl p-2 ${isSelected ? "bg-mint" : "hover:bg-cream"}`}>
+                    <button onClick={() => openFriend(entry)} className="flex w-full gap-3 rounded-xl p-2 text-left">
+                      <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-forest text-lg font-bold text-lime">
+                        {friend.avatar ? <img src={friend.avatar} alt="" className="h-full w-full object-cover" /> : friend.name?.[0] || "?"}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-bold">{friend.name}</p>
+                        <p className="truncate text-xs text-ink/45">{[friend.locality, friend.city].filter(Boolean).join(", ") || "Friend"}</p>
+                        <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-ink/40">Private friend chat</p>
+                      </div>
+                    </button>
                   </div>
-                </button>
-                {isOwner && (
-                  <button onClick={() => openEdit(item)} className="ml-2 mt-1 inline-flex items-center gap-1 text-xs font-bold text-coral">
-                    <Edit3 size={13} /> Edit room
-                  </button>
-                )}
-              </div>
-            );
-          })}
-          {!rooms.length && <p className="p-3 text-sm text-ink/45">No chat rooms yet.</p>}
+                );
+              })}
+              {!friends.length && (
+                <div className="grid gap-3 p-3 text-sm text-ink/55">
+                  <Users size={24} className="text-coral" />
+                  <p>No friends yet. Add friends from profiles, then chat with them here.</p>
+                  <Link to="/profile" className="font-bold text-coral">View your profile</Link>
+                </div>
+              )}
+            </>
+          )}
         </aside>
-        <ChatBox room={room} description={selectedDescription} />
+        <ChatBox room={room} password={roomPassword} description={selectedDescription} />
       </div>
 
       {(creating || editing) && (
@@ -292,5 +390,3 @@ export default function PublicChat() {
     </main>
   );
 }
-
-

@@ -13,6 +13,8 @@ import Events from "./pages/Events";
 import PublicChat from "./pages/PublicChat";
 import AreaSummary from "./pages/AreaSummary";
 import AdminDashboard from "./pages/AdminDashboard";
+import Profile from "./pages/Profile";
+import Notifications from "./pages/Notifications";
 function Layout() {
   return (
     <>
@@ -51,10 +53,13 @@ export default function App() {
         <Route path="/communities" element={<Communities />} />
         <Route path="/communities/:id" element={<CommunityDetails />} />
         <Route path="/events" element={<Events />} />
+        <Route path="/profile/:id" element={<Profile />} />
         <Route element={<Protected />}>
           <Route path="/create" element={<CreatePost />} />
           <Route path="/chat" element={<PublicChat />} />
           <Route path="/summary" element={<AreaSummary />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/notifications" element={<Notifications />} />
           <Route element={<RoleRoute />}>
             <Route path="/admin" element={<AdminDashboard />} />
           </Route>
@@ -64,4 +69,5 @@ export default function App() {
     </Routes>
   );
 }
+
 
