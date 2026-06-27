@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
+import api from "../api/axiosInstance";
 import { useAuth } from "../context/AuthContext";
 import { applyTheme, getInitialTheme } from "../utils/theme";
 const links = [
@@ -29,11 +30,43 @@ export default function Navbar() {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
   const [theme, setTheme] = useState(getInitialTheme);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   useEffect(() => {
     applyTheme(theme);
     localStorage.setItem("lc_theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (!user) {
+      setUnreadNotifications(0);
+      return;
+    }
+
+    let active = true;
+    const loadUnreadNotifications = () =>
+      api
+        .get("/notifications")
+        .then((response) => {
+          if (!active) return;
+          setUnreadNotifications((response.data || []).filter((item) => !item.read).length);
+        })
+        .catch(() => {
+          if (active) setUnreadNotifications(0);
+        });
+
+    loadUnreadNotifications();
+    const interval = window.setInterval(loadUnreadNotifications, 30000);
+    window.addEventListener("focus", loadUnreadNotifications);
+    window.addEventListener("localconnect:notifications-changed", loadUnreadNotifications);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", loadUnreadNotifications);
+      window.removeEventListener("localconnect:notifications-changed", loadUnreadNotifications);
+    };
+  }, [user]);
 
   const dark = theme === "dark";
   return (
@@ -76,9 +109,19 @@ export default function Navbar() {
                   <Plus size={18} />
                   Post
                 </Link>
-                <button className="rounded-full p-2 text-forest transition hover:bg-mint dark:text-white/75 dark:hover:bg-white/10">
+                <Link
+                  to="/notifications"
+                  className={`relative grid h-10 w-10 place-items-center rounded-full transition ${unreadNotifications ? "text-coral hover:bg-coral/10 dark:text-coral dark:hover:bg-coral/15" : "text-forest hover:bg-mint dark:text-white/75 dark:hover:bg-white/10"}`}
+                  aria-label={`Open notifications, ${unreadNotifications} unread`}
+                  title={`${unreadNotifications} unread notification${unreadNotifications === 1 ? "" : "s"}`}
+                >
                   <Bell size={20} />
-                </button>
+                  <span
+                    className={`absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full px-1 text-[11px] font-bold leading-none ${unreadNotifications ? "bg-coral text-white" : "bg-mint text-forest ring-1 ring-forest/15 dark:bg-white/15 dark:text-white"}`}
+                  >
+                    {unreadNotifications > 99 ? "99+" : unreadNotifications}
+                  </span>
+                </Link>
                 <button
                   onClick={logout}
                   title="Log out"

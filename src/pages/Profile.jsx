@@ -1,4 +1,4 @@
-import { Check, MapPin, Upload, UserPlus, X } from "lucide-react";
+import { Check, MapPin, Upload, UserMinus, UserPlus, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Link, useParams } from "react-router-dom";
@@ -117,6 +117,18 @@ export default function Profile() {
     }
   };
 
+  const unfriend = async () => {
+    setBusy(true);
+    try {
+      await api.put(`/users/${profile._id}/friend-remove`);
+      await load();
+      toast.success("Friend removed");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Could not remove friend");
+    } finally {
+      setBusy(false);
+    }
+  };
   if (!profile) return <main className="mx-auto max-w-5xl px-4 py-10">Loading profile...</main>;
 
   return (
@@ -134,7 +146,7 @@ export default function Profile() {
             {isMe ? (
               <button onClick={() => setEditing((value) => !value)} className="btn-primary">Edit profile</button>
             ) : friendship === "friends" ? (
-              <span className="btn-soft">Friends</span>
+              <button disabled={busy} onClick={unfriend} className="btn-soft text-coral"><UserMinus size={17} /> Unfriend</button>
             ) : friendship === "sent" ? (
               <span className="btn-soft">Request sent</span>
             ) : friendship === "received" ? (
