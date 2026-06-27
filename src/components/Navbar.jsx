@@ -86,9 +86,17 @@ export default function Navbar() {
                 >
                   <LogOut size={20} />
                 </button>
-                <div className="grid h-10 w-10 place-items-center rounded-full bg-coral font-bold text-white">
-                  {user.name?.[0]}
-                </div>
+                <Link
+                  to={`/profile/${user.id || user._id}`}
+                  className="grid h-10 w-10 place-items-center overflow-hidden rounded-full bg-coral font-bold text-white"
+                  aria-label="Open profile"
+                >
+                  {user.avatar ? (
+                    <img src={user.avatar} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    user.name?.[0]
+                  )}
+                </Link>
               </>
             ) : (
               <Link className="btn-primary" to="/login">
