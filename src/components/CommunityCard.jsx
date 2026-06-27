@@ -7,12 +7,13 @@ const sameId = (a, b) => String(a?._id || a) === String(b?._id || b);
 export default function CommunityCard({ item, onAction }) {
   const { user } = useAuth();
   const userId = user?.id || user?._id;
-  const isMember = Boolean(userId && item.members?.some((id) => sameId(id, userId)));
+  const isSuperAdmin = user?.role === "super_admin";
+  const isMember = Boolean(isSuperAdmin || (userId && item.members?.some((id) => sameId(id, userId))));
   const isPending = Boolean(
     userId && item.joinRequests?.some((request) => sameId(request.user, userId)),
   );
   const buttonLabel = isMember
-    ? `Member - ${item.members?.length || 0} neighbours`
+    ? isSuperAdmin ? `Super admin access - ${item.members?.length || 0} neighbours` : `Member - ${item.members?.length || 0} neighbours`
     : isPending
       ? "Pending approval"
       : `Request to join ${item.members?.length || 0} neighbours`;

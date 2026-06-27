@@ -1,4 +1,4 @@
-import { Edit3, Eye, Image, Lock, Plus, Search, Users, X } from "lucide-react";
+import { Edit3, Eye, Image, Lock, Plus, Search, Trash2, Users, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
@@ -19,6 +19,7 @@ const sameId = (a, b) => String(a?._id || a) === String(b?._id || b);
 
 export default function PublicChat() {
   const { user } = useAuth();
+  const isSuperAdmin = user?.role === "super_admin";
   const [mode, setMode] = useState("rooms");
   const [rooms, setRooms] = useState([]);
   const [friends, setFriends] = useState([]);
@@ -31,12 +32,52 @@ export default function PublicChat() {
   const [joinForm, setJoinForm] = useState({ roomCode: "", password: "" });
   const [busy, setBusy] = useState(false);
   const [roomPassword, setRoomPassword] = useState("");
+  const [privateRoomPasswords, setPrivateRoomPasswords] = useState({});
+  const [roomSearch, setRoomSearch] = useState("");
+
+  const filteredRooms = useMemo(() => {
+    const query = roomSearch.trim().toLowerCase();
+    if (!query) return rooms;
+    return rooms.filter((item) =>
+      [
+        item.name,
+        item.description,
+        item.roomCode,
+        item.type,
+        item.city,
+        item.locality,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query)),
+    );
+  }, [rooms, roomSearch]);
+
+  const getStoredRoomPassword = (item) =>
+    privateRoomPasswords[item?._id] || privateRoomPasswords[item?.roomCode] || "";
+
+  const rememberRoomPassword = (item, password) => {
+    if (!item || !password) return;
+    setPrivateRoomPasswords((current) => ({
+      ...current,
+      ...(item._id && { [item._id]: password }),
+      ...(item.roomCode && { [item.roomCode]: password }),
+    }));
+  };
+
+  const forgetRoomPassword = (item) => {
+    setPrivateRoomPasswords((current) => {
+      const next = { ...current };
+      if (item?._id) delete next[item._id];
+      if (item?.roomCode) delete next[item.roomCode];
+      return next;
+    });
+  };
 
   const selectedDescription = useMemo(() => {
     if (!room) return mode === "friends" ? "Choose a friend to start chatting." : "Choose a room to join the conversation.";
-    if (mode === "friends") return activeFriend ? `Private chat with ${activeFriend.name}` : "Friends-only direct chat";
+    if (mode === "friends") return activeFriend ? `${isSuperAdmin ? "Direct chat" : "Private chat"} with ${activeFriend.name}` : isSuperAdmin ? "All direct chats" : "Friends-only direct chat";
     return room.description || `${room.type === "private" ? "Private" : "Public"} local chat room`;
-  }, [activeFriend, mode, room]);
+  }, [activeFriend, isSuperAdmin, mode, room]);
 
   const loadRooms = () =>
     api
@@ -110,6 +151,9 @@ export default function PublicChat() {
       if (user?.locality) body.append("locality", user.locality);
       if (form.avatarFile) body.append("avatar", form.avatarFile);
       const { data } = await api.post("/chat/rooms", body);
+      const createdPassword = form.password;
+      if (data.type === "private" && createdPassword) rememberRoomPassword(data, createdPassword);
+      setRoomPassword(data.type === "private" ? createdPassword : "");
       setCreating(false);
       setForm(emptyRoom);
       await loadRooms();
@@ -136,6 +180,14 @@ export default function PublicChat() {
       if (form.password) body.append("password", form.password);
       if (form.avatarFile) body.append("avatar", form.avatarFile);
       const { data } = await api.put(`/chat/rooms/${editing._id}`, body);
+      const updatedPassword = form.password;
+      if (data.type === "private" && updatedPassword) {
+        rememberRoomPassword(data, updatedPassword);
+        if (room?._id === data._id) setRoomPassword(updatedPassword);
+      } else if (data.type !== "private") {
+        forgetRoomPassword(data);
+        if (room?._id === data._id) setRoomPassword("");
+      }
       setEditing(null);
       setForm(emptyRoom);
       await loadRooms();
@@ -153,8 +205,14 @@ export default function PublicChat() {
   const openRoom = (item) => {
     setMode("rooms");
     setActiveFriend(null);
-    if (item.type !== "private") {
+    if (item.type !== "private" || isSuperAdmin) {
       setRoomPassword("");
+      setRoom(item);
+      return;
+    }
+    const savedPassword = getStoredRoomPassword(item);
+    if (savedPassword) {
+      setRoomPassword(savedPassword);
       setRoom(item);
       return;
     }
@@ -164,6 +222,19 @@ export default function PublicChat() {
 
   const openFriend = async (entry) => {
     const friend = entry.friend;
+    if (isSuperAdmin && entry.room) {
+      setMode("friends");
+      setRoomPassword("");
+      setActiveFriend(friend);
+      setRoom({
+        ...entry.room,
+        name: friend?.name || entry.room.name,
+        avatar: friend?.avatar || entry.room.avatar,
+        description: entry.room.description || "Super admin direct chat view",
+      });
+      return;
+    }
+
     setBusy(true);
     try {
       const { data } = await api.post(`/chat/direct/${friend._id}`);
@@ -191,6 +262,7 @@ export default function PublicChat() {
       const { data } = await api.post("/chat/rooms/join", joinForm);
       setJoiningRoom(null);
       const password = joinForm.password;
+      rememberRoomPassword(data, password);
       setJoinForm({ roomCode: "", password: "" });
       await loadRooms();
       setMode("rooms");
@@ -200,6 +272,25 @@ export default function PublicChat() {
       toast.success("Joined private room");
     } catch (error) {
       toast.error(error.response?.data?.message || "Could not join room");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteRoom = async (item) => {
+    if (!window.confirm(`Delete ${item.name}? This removes the room and its messages.`)) return;
+    setBusy(true);
+    try {
+      await api.delete(`/chat/rooms/${item._id}`);
+      forgetRoomPassword(item);
+      if (room?._id === item._id) {
+        setRoom(undefined);
+        setRoomPassword("");
+      }
+      await loadRooms();
+      toast.success("Room deleted");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Could not delete room");
     } finally {
       setBusy(false);
     }
@@ -228,15 +319,24 @@ export default function PublicChat() {
 
       <div className="mt-6 inline-flex rounded-full bg-mint p-1">
         <button onClick={() => switchMode("rooms")} className={`rounded-full px-5 py-2 font-bold transition ${mode === "rooms" ? "bg-forest text-white" : "text-forest/70 hover:text-forest"}`}>Chat rooms</button>
-        <button onClick={() => switchMode("friends")} className={`rounded-full px-5 py-2 font-bold transition ${mode === "friends" ? "bg-forest text-white" : "text-forest/70 hover:text-forest"}`}>Chat with friends</button>
+        <button onClick={() => switchMode("friends")} className={`rounded-full px-5 py-2 font-bold transition ${mode === "friends" ? "bg-forest text-white" : "text-forest/70 hover:text-forest"}`}>{isSuperAdmin ? "Direct chats" : "Chat with friends"}</button>
       </div>
 
       <div className="card mt-6 grid overflow-hidden lg:grid-cols-[340px_1fr]">
         <aside className="max-h-[38rem] overflow-y-auto border-r border-forest/10 p-3">
           {mode === "rooms" ? (
             <>
-              {rooms.map((item) => {
-                const isOwner = sameId(item.createdBy, ownerId);
+              <label className="relative mb-3 block">
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-forest/45" />
+                <input
+                  className="field h-11 pl-9 text-sm"
+                  placeholder="Search public or private rooms"
+                  value={roomSearch}
+                  onChange={(e) => setRoomSearch(e.target.value)}
+                />
+              </label>
+              {filteredRooms.map((item) => {
+                const isOwner = item.canEdit || sameId(item.ownerId, ownerId) || sameId(item.createdBy, ownerId);
                 const isSelected = room?._id === item._id && !activeFriend;
                 return (
                   <div key={item._id} className={`mb-2 rounded-2xl p-2 ${isSelected ? "bg-mint" : "hover:bg-cream"}`}>
@@ -256,14 +356,20 @@ export default function PublicChat() {
                       </div>
                     </button>
                     {isOwner && (
-                      <button onClick={() => openEdit(item)} className="ml-2 mt-1 inline-flex items-center gap-1 text-xs font-bold text-coral">
-                        <Edit3 size={13} /> Edit room
-                      </button>
+                      <div className="ml-2 mt-1 flex flex-wrap gap-3">
+                        <button onClick={() => openEdit(item)} className="inline-flex items-center gap-1 text-xs font-bold text-coral">
+                          <Edit3 size={13} /> Edit room
+                        </button>
+                        <button disabled={busy} onClick={() => deleteRoom(item)} className="inline-flex items-center gap-1 text-xs font-bold text-coral">
+                          <Trash2 size={13} /> Delete room
+                        </button>
+                      </div>
                     )}
                   </div>
                 );
               })}
               {!rooms.length && <p className="p-3 text-sm text-ink/45">No chat rooms yet.</p>}
+              {Boolean(rooms.length && !filteredRooms.length) && <p className="p-3 text-sm text-ink/45">No rooms match your search.</p>}
             </>
           ) : (
             <>
@@ -279,7 +385,7 @@ export default function PublicChat() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-bold">{friend.name}</p>
                         <p className="truncate text-xs text-ink/45">{[friend.locality, friend.city].filter(Boolean).join(", ") || "Friend"}</p>
-                        <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-ink/40">Private friend chat</p>
+                        <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-ink/40">{isSuperAdmin ? "Direct chat" : "Private friend chat"}</p>
                       </div>
                     </button>
                   </div>
@@ -288,7 +394,7 @@ export default function PublicChat() {
               {!friends.length && (
                 <div className="grid gap-3 p-3 text-sm text-ink/55">
                   <Users size={24} className="text-coral" />
-                  <p>No friends yet. Add friends from profiles, then chat with them here.</p>
+                  <p>{isSuperAdmin ? "No direct chats yet." : "No friends yet. Add friends from profiles, then chat with them here."}</p>
                   <Link to="/profile" className="font-bold text-coral">View your profile</Link>
                 </div>
               )}
@@ -372,14 +478,14 @@ export default function PublicChat() {
             >
               <X />
             </button>
-            <h2 className="text-2xl">Join private room</h2>
+            <h2 className="text-2xl">{joiningRoom?._id ? "Enter private room password" : "Join private room"}</h2>
             <label className="label">
               Room ID
               <input className="field mt-1 uppercase" required value={joinForm.roomCode} onChange={(e) => setJoinForm({ ...joinForm, roomCode: e.target.value.toUpperCase() })} />
             </label>
             <label className="label">
               Password
-              <input className="field mt-1" type="password" required value={joinForm.password} onChange={(e) => setJoinForm({ ...joinForm, password: e.target.value })} />
+              <input className="field mt-1" type="password" required={!isSuperAdmin} value={joinForm.password} onChange={(e) => setJoinForm({ ...joinForm, password: e.target.value })} />
             </label>
             <button disabled={busy} className="btn-primary w-full">
               <Lock size={17} /> {busy ? "Joining..." : "Join room"}

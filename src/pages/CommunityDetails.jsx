@@ -1,7 +1,7 @@
-import { ArrowLeft, Check, Lock, LogOut, MapPin, Users, X } from "lucide-react";
+import { ArrowLeft, Check, Lock, LogOut, MapPin, Trash2, Users, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import api from "../api/axiosInstance";
 import ChatBox from "../components/ChatBox";
 import { useAuth } from "../context/AuthContext";
@@ -10,6 +10,7 @@ const sameId = (a, b) => String(a?._id || a) === String(b?._id || b);
 
 export default function CommunityDetails() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [community, setCommunity] = useState(null);
   const [room, setRoom] = useState(null);
@@ -18,14 +19,15 @@ export default function CommunityDetails() {
   const [requestBusy, setRequestBusy] = useState("");
 
   const userId = user?.id || user?._id;
+  const isSuperAdmin = user?.role === "super_admin";
   const isMember = useMemo(
-    () => Boolean(userId && community?.members?.some((member) => sameId(member, userId))),
-    [community, userId],
+    () => Boolean(isSuperAdmin || (userId && community?.members?.some((member) => sameId(member, userId)))),
+    [community, isSuperAdmin, userId],
   );
-  const isAdmin = Boolean(userId && sameId(community?.creator, userId));
+  const isAdmin = Boolean(isSuperAdmin || (userId && sameId(community?.creator, userId)));
   const hasPendingRequest = useMemo(
     () => Boolean(userId && community?.joinRequests?.some((request) => sameId(request.user, userId))),
-    [community, userId],
+    [community, isSuperAdmin, userId],
   );
 
   const loadCommunity = (signal) =>
@@ -95,6 +97,19 @@ export default function CommunityDetails() {
     }
   };
 
+  const deleteCommunity = async () => {
+    if (!window.confirm(`Delete ${community.name}? This cannot be undone.`)) return;
+    setBusy(true);
+    try {
+      await api.delete(`/communities/${id}`);
+      toast.success("Community deleted");
+      navigate("/communities");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Could not delete community");
+    } finally {
+      setBusy(false);
+    }
+  };
   const decideRequest = async (requestUserId, decision) => {
     setRequestBusy(`${decision}:${requestUserId}`);
     try {
@@ -148,7 +163,7 @@ export default function CommunityDetails() {
             {isMember ? (
               <div className="mt-6 space-y-3">
                 <div className="rounded-2xl bg-mint p-4 text-sm font-semibold text-forest">
-                  {isAdmin ? "You manage this community." : "You are a member. Community chat is unlocked."}
+                  {isSuperAdmin ? "Super admin access is enabled." : isAdmin ? "You manage this community." : "You are a member. Community chat is unlocked."}
                 </div>
                 {!isAdmin && (
                   <button
@@ -180,6 +195,15 @@ export default function CommunityDetails() {
           {isAdmin && (
             <section className="card p-5">
               <h2 className="text-2xl">Join requests</h2>
+              <button
+                type="button"
+                onClick={deleteCommunity}
+                disabled={busy}
+                className="btn-soft mt-4 w-full text-coral"
+              >
+                <Trash2 size={17} />
+                {busy ? "Deleting..." : "Delete community"}
+              </button>
               <div className="mt-4 space-y-3">
                 {community.joinRequests?.length ? (
                   community.joinRequests.map((request) => {

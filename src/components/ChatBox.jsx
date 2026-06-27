@@ -11,7 +11,11 @@ export default function ChatBox({ room, password = "", description = "Public roo
     if (!room) return;
     api
       .get(`/chat/rooms/${room._id}/messages`, { params: password ? { password } : {} })
-      .then((r) => setMessages(r.data));
+      .then((r) => setMessages(r.data))
+      .catch((error) => {
+        setMessages([]);
+        toast.error(error.response?.data?.message || "Could not load messages");
+      });
     socket.current = io(
       (import.meta.env.VITE_API_URL || "http://localhost:8000/api").replace(
         /\/api\/?$/,

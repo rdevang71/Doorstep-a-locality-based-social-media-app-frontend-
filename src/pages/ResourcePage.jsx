@@ -1,4 +1,4 @@
-import { Plus, X } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import api from "../api/axiosInstance";
 import { onRealtime } from "../api/realtime";
@@ -16,6 +16,7 @@ export default function ResourcePage({
   const { user, loading } = useAuth();
   const [items, setItems] = useState([]);
   const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const initial = useMemo(
     () =>
       Object.fromEntries(
@@ -75,6 +76,17 @@ export default function ResourcePage({
     };
   }, [endpoint, loading, user?.city]);
 
+  const isCommunityPage = endpoint === "/communities";
+  const filteredItems = useMemo(() => {
+    if (!isCommunityPage) return items;
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return items;
+    return items.filter((item) =>
+      [item.name, item.description, item.city, item.locality]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(query)),
+    );
+  }, [endpoint, isCommunityPage, items, searchQuery]);
   const create = async (e) => {
     e.preventDefault();
     try {
@@ -113,14 +125,25 @@ export default function ResourcePage({
           </button>
         )}
       </div>
+      {isCommunityPage && (
+        <label className="relative mt-8 block max-w-xl">
+          <Search size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-forest/45" />
+          <input
+            className="field h-12 pl-11"
+            placeholder="Search communities by name, description, city, or locality"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </label>
+      )}
       <div className="mt-9 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((i) => (
+        {filteredItems.map((i) => (
           <Card key={i._id} item={i} onAction={act} />
         ))}
       </div>
-      {!items.length && (
+      {!filteredItems.length && (
         <div className="card mt-9 p-12 text-center text-ink/50">
-          Nothing here yet. Start something good.
+          {isCommunityPage && items.length ? "No communities match your search." : "Nothing here yet. Start something good."}
         </div>
       )}
       {open && (
